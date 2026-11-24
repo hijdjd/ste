@@ -1,0 +1,23 @@
+name: Build Tweak
+on: [push, workflow_dispatch]
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Theos
+        uses: Randomblock1/theos-action@main
+      - name: Build
+        run: |
+          make clean || true
+          make package FINALPACKAGE=1 DEBUG=0
+      - name: Upload deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: tweak-deb
+          path: packages/*.deb
+      - name: Upload dylib
+        uses: actions/upload-artifact@v4
+        with:
+          name: tweak-dylib
+          path: .theos/obj/**/stehook.dylib

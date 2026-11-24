@@ -1,0 +1,9 @@
+Package: com.ste.hook
+Name: STE Hook
+Version: 1.0
+Architecture: iphoneos-arm64
+Description: Starbucks-STE auth bypass
+Maintainer: x
+Author: x
+Section: Tweaks
+Depends: mobilesubstrate
