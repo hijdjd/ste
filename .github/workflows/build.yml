@@ -19,6 +19,21 @@ jobs:
           unzip -q /tmp/sdks.zip -d /tmp/sdks
           mkdir -p $THEOS/sdks
           cp -r /tmp/sdks/sdks-master/iPhoneOS16.5.sdk $THEOS/sdks/ 2>/dev/null || cp -r /tmp/sdks/sdks-master/* $THEOS/sdks/
+      - name: Setup Linux toolchain
+        env:
+          THEOS: ${{ github.workspace }}/theos
+        run: |
+          export THEOS=${{ github.workspace }}/theos
+          mkdir -p $THEOS/toolchain/linux/iphone/bin
+          for t in clang clang++ ld lld ld64.lld; do
+            real=$(command -v $t 2>/dev/null || command -v ${t/lld/ld.lld} 2>/dev/null || true)
+          done
+          ln -sf $(command -v clang) $THEOS/toolchain/linux/iphone/bin/clang
+          ln -sf $(command -v clang++) $THEOS/toolchain/linux/iphone/bin/clang++
+          ln -sf $(command -v ld.lld) $THEOS/toolchain/linux/iphone/bin/ld 2>/dev/null || true
+          ln -sf $(command -v lld) $THEOS/toolchain/linux/iphone/bin/ld64 2>/dev/null || true
+          # Theos 需要 ld64/ldid，用系统 lld；补工具软链
+          ln -sf $(command -v ld.lld) $THEOS/toolchain/linux/iphone/bin/ld.lld 2>/dev/null || true
       - name: Build
         env:
           THEOS: ${{ github.workspace }}/theos
