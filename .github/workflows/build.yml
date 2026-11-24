@@ -28,10 +28,14 @@ jobs:
           cd /tmp
           curl -fsSL -o tc.tar.lzma https://github.com/sbingner/llvm-project/releases/download/v10.0.0-2/linux-ios-arm64e-clang-toolchain.tar.lzma
           mkdir -p tc && tar --lzma -xf tc.tar.lzma -C tc
+          ls tc
+          SRC=$(find tc -maxdepth 1 -type d -name "*clang*" | head -1)
+          echo "SRC=$SRC"
           rm -rf $THEOS/toolchain
           mkdir -p $THEOS/toolchain/linux
-          mv tc/linux-ios-arm64e-clang-toolchain $THEOS/toolchain/linux/iphone
-          $THEOS/toolchain/linux/iphone/bin/clang --version | head -2
+          mv "$SRC" $THEOS/toolchain/linux/iphone
+          ls $THEOS/toolchain/linux/iphone/bin | head
+          $THEOS/toolchain/linux/iphone/bin/clang --version | head -2 || true
       - name: Build
         env:
           THEOS: ${{ github.workspace }}/theos
