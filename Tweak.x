@@ -17,6 +17,28 @@ static const char* gExit[]={"_showExpiredAlertAndExitWithMessage:",0};
 static BOOL inList(const char**arr,const char*sn){for(int i=0;arr[i];i++)if(!strcmp(arr[i],sn))return YES;return NO;}
 
 static void sweep(void){
+  NSMutableString*dump=[NSMutableString string];
+  int dn=objc_getClassList(NULL,0);
+  Class*dcl=(Class*)calloc(dn,sizeof(Class)); dn=objc_getClassList(dcl,dn);
+  for(int k=0;k<dn;k++){
+    const char*cn=class_getName(dcl[k]);
+    if(!cn) continue;
+    unsigned m2=0; Method*mm=class_copyMethodList(dcl[k],&m2);
+    for(unsigned q=0;q<m2;q++){
+      const char*sn2=sel_getName(method_getName(mm[q]));
+      NSString*S=[NSString stringWithUTF8String:sn2];
+      if([S containsString:@"Login"]||[S containsString:@"Card"]||[S containsString:@"Lease"]||[S containsString:@"Token"]||
+         [S containsString:@"Vip"]||[S containsString:@"vip"]||[S containsString:@"Expire"]||[S containsString:@"expire"]||
+         [S containsString:@"Valid"]||[S containsString:@"Auth"]||[S containsString:@"Session"]||[S containsString:@"Ticket"]||
+         [S containsString:@"Gate"]||[S containsString:@"Verify"]||[S containsString:@"verify"]||[S containsString:@"Entitl"]||
+         [S containsString:@"Grant"]||[S containsString:@"Premium"]||[S containsString:@"Purchase"]){
+        [dump appendFormat:@"%s::%s::%s\n",cn,sn2,method_getTypeEncoding(mm[q])];
+      }
+    }
+    free(mm);
+  }
+  free(dcl);
+  [dump writeToFile:@"/var/mobile/stehook_dump.txt" atomically:YES encoding:NSUTF8StringEncoding error:nil];
   int n=objc_getClassList(NULL,0);
   Class*cls=(Class*)calloc(n,sizeof(Class)); n=objc_getClassList(cls,n);
   for(int i=0;i<n;i++){
