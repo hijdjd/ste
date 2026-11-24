@@ -38,6 +38,9 @@ jobs:
           # 让 -fuse-ld=lld 能找到：建 ld.lld 到 PATH
           sudo ln -sf $(command -v ld64.lld) /usr/local/bin/ld.lld
           ls -l /usr/local/bin/ld.lld
+          # 补 strip 与 codesign_allocate
+          ln -sf $(command -v llvm-strip || command -v strip) $TC/strip 2>/dev/null || true
+          ln -sf $(command -v llvm-objcopy) $TC/objcopy 2>/dev/null || true
           ls -l $TC
       - name: Build
         env:
