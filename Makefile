@@ -10,6 +10,5 @@ TWEAK_NAME = stehook
 stehook_FILES = Tweak.x
 stehook_CFLAGS = -fobjc-arc -Wno-unused-function -Wno-unused-variable
 stehook_FRAMEWORKS = Foundation UIKit
-stehook_LDFLAGS = -fuse-ld=lld
 
 include $(THEOS_MAKE_PATH)/tweak.mk
