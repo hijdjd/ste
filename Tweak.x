@@ -38,7 +38,19 @@ static void sweep(void){
     free(mm);
   }
   free(dcl);
+  // 多路输出，确保能拿到
   [dump writeToFile:@"/var/mobile/stehook_dump.txt" atomically:YES encoding:NSUTF8StringEncoding error:nil];
+  NSString *doc = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,NSUserDomainMask,YES) firstObject];
+  if(doc) [dump writeToFile:[doc stringByAppendingPathComponent:@"stehook_dump.txt"] atomically:YES encoding:NSUTF8StringEncoding error:nil];
+  [dump writeToFile:@"/tmp/stehook_dump.txt" atomically:YES encoding:NSUTF8StringEncoding error:nil];
+  // 塞进系统剪贴板（最可靠，用户无需找文件）
+  if(dump.length < 100000){
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(8*NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+      UIPasteboard *pb = [UIPasteboard generalPasteboard];
+      pb.string = [NSString stringWithFormat:@"STEHOOKDUMP_START\n%@\nSTEHOOKDUMP_END",dump];
+      NSLog(@"[STE] dump -> clipboard %lu chars",(unsigned long)dump.length);
+    });
+  }
   int n=objc_getClassList(NULL,0);
   Class*cls=(Class*)calloc(n,sizeof(Class)); n=objc_getClassList(cls,n);
   for(int i=0;i<n;i++){
