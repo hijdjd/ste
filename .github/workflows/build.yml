@@ -46,8 +46,9 @@ jobs:
         run: |
           export THEOS=${{ github.workspace }}/theos
           export PATH=$THEOS/bin:$PATH
+          export LD64LLD=$(command -v ld64.lld)
           make clean || true
-          make package FINALPACKAGE=1 DEBUG=0
+          make package FINALPACKAGE=1 DEBUG=0 TARGET_LDFLAGS="-fuse-ld=$LD64LLD" ADDITIONAL_LDFLAGS="-fuse-ld=$LD64LLD"
       - name: Upload deb
         uses: actions/upload-artifact@v4
         with:
