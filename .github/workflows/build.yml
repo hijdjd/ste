@@ -70,6 +70,28 @@ jobs:
           sudo chmod +x /usr/bin/x86_64-linux-gnu-ld.bfd
           make clean || true
           make package FINALPACKAGE=1 DEBUG=0
+      - name: Package IPA (inject dylib)
+        run: |
+          set -e
+          DYLIB=$(find .theos/obj -name "stehook.dylib" | head -1)
+          echo "dylib=$DYLIB"; ls -la "$DYLIB"
+          rm -rf ipawork && mkdir ipawork && cd ipawork
+          unzip -q "$GITHUB_WORKSPACE/orig.ipa" -d .
+          APP=$(find Payload -maxdepth 1 -name "*.app" | head -1)
+          echo "app=$APP"
+          python3 ../inject.py "$APP" "../$DYLIB"
+          LDID=$(command -v ldid)
+          EXE=$(python3 -c "import plistlib;print(plistlib.load(open('$APP/Info.plist','rb'))['CFBundleExecutable'])")
+          # 签所有 dylib 与 framework 二进制
+          find "$APP" -name "*.dylib" -exec "$LDID" -S {} \; || true
+          find "$APP/Frameworks" -type f 2>/dev/null | while read -r f; do
+            if head -c4 "$f" | grep -q "$(printf '\xcf\xfa\xed\xfe')" 2>/dev/null; then "$LDID" -S "$f" || true; fi
+          done
+          # 签主程序
+          "$LDID" -S"$GITHUB_WORKSPACE/entitlements.plist" "$APP/$EXE"
+          echo "signed all"
+          zip -qry ../ste-ipa.ipa Payload
+          cd .. && ls -la ste-ipa.ipa
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -77,3 +99,4 @@ jobs:
           path: |
             packages/*.deb
             .theos/obj/**/*.dylib
+            ste-ipa.ipa
