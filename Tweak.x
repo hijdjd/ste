@@ -44,7 +44,7 @@ static void sweep(void){
         method_setImplementation(ms[j],(IMP)my_onLogin);
         NSLog(@"[STE] patched %s",sn);
       }
-      else if((te[0]=='c'||te[0]=='B') && ([sn[0]=='_'?sn+1:sn) && (
+      else if((te[0]=='c'||te[0]=='B') && (
           [s hasPrefix:@"responseMessageIndicatesLoginFailure"]||[s hasPrefix:@"responseIndicatesSessionInvalid"]||
           [s hasPrefix:@"messageMeansInvalidSession"]||[s hasPrefix:@"messageIndicatesSessionInvalid"]||
           [s hasPrefix:@"isExpired"]||[s hasPrefix:@"isInvalid"])){
