@@ -8,7 +8,10 @@ jobs:
       - name: Install deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang lld llvm make git curl perl fakeroot dpkg file unzip xz-utils
+          sudo apt-get install -y clang lld llvm make git curl perl fakeroot dpkg file unzip xz-utils binutils
+          # 装 ldid
+          sudo apt-get install -y libplist-dev libssl-dev 2>/dev/null || true
+          cd /tmp && git clone --depth 1 https://github.com/ProcursusTeam/ldid.git && cd ldid && git submodule update --init --depth 1 && make -j4 CXX=clang++ CC=clang CFLAGS="-I/usr/include" 2>&1 | tail -3 && sudo cp ldid /usr/local/bin/ldid && ldid -h 2>&1 | head -1 || echo "ldid build failed"
           clang --version
       - name: Setup Theos + SDK
         env:
