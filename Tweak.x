@@ -14,7 +14,6 @@ static BOOL retYES(id s, SEL c){ return YES; }
 static id retNil(id s, SEL c){ return nil; }
 static double retFuture(id s, SEL c){ return 4102444799.0; } // 2099-12-31
 static double retZero(id s, SEL c){ return 0.0; }
-static long retLong0(id s, SEL c){ return 0; }
 static void void_noop(id s, SEL c){ }
 
 static void sweep(void){
