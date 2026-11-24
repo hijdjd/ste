@@ -19,14 +19,14 @@ static void void_noop(id s, SEL c){ }
 
 static void sweep(void){
   int n = objc_getClassList(NULL,0);
-  Class *cls = malloc(sizeof(Class)*n);
+  Class *cls = (Class *)calloc(n, sizeof(Class));
   n = objc_getClassList(cls,n);
   for(int i=0;i<n;i++){
     Class K = cls[i];
     const char *kn = class_getName(K);
     if(!kn) continue;
     // 只处理本 app 二进制/image 定义的类，避免误伤系统类
-    Dl_info di; if(dladdr((void*)K,&di) && di.dli_fname){
+    Dl_info di; if(dladdr((__bridge void *)K,&di) && di.dli_fname){
       NSString *path=[NSString stringWithUTF8String:di.dli_fname];
       if(!([path containsString:@"Podcasts.app"]||[path containsString:@"StarbucksSTE"]||[path containsString:@"/var/"]||[path containsString:@"Bundle/Application"])) continue;
     } else continue;
