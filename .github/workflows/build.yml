@@ -42,9 +42,13 @@ jobs:
         run: |
           export THEOS=${{ github.workspace }}/theos
           export PATH=$THEOS/bin:$PATH
+          export LD64LLD=$(command -v ld64.lld)
+          echo "LD64LLD=$LD64LLD"
           make clean || true
-          make -n package FINALPACKAGE=1 DEBUG=0 2>&1 | grep -i "ld|clang" | head -20 || true
-          make package FINALPACKAGE=1 DEBUG=0
+          echo "=== link cmd ==="
+          make -n package FINALPACKAGE=1 DEBUG=0 TARGET_LDFLAGS="-fuse-ld=$LD64LLD" 2>&1 | grep -iE "ld64\.lld|fuse-ld|Linking| -o " | head -10 || true
+          echo "=== build ==="
+          make package FINALPACKAGE=1 DEBUG=0 TARGET_LDFLAGS="-fuse-ld=$LD64LLD"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
