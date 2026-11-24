@@ -3,69 +3,82 @@
 #import <dlfcn.h>
 #import <UIKit/UIKit.h>
 
-static BOOL inApp(Class K){
-  Dl_info di; if(!dladdr((__bridge void*)K,&di)||!di.dli_fname) return NO;
-  NSString*p=[NSString stringWithUTF8String:di.dli_fname];
-  return [p containsString:@"Podcasts.app"]||[p containsString:@"StarbucksSTE"];
-}
-
-// 全局：把失败类判定改掉
-static BOOL retNO(id s,SEL c){return NO;}
 static BOOL retYES(id s,SEL c){return YES;}
+static BOOL retNO(id s,SEL c){return NO;}
 static double retFuture(id s,SEL c){return 4102444799.0;}
+static id retDummy(id s,SEL c){return @"qvip999999999";}
+static void noop(id s,SEL c){}
 
-// hook UIAlertController show / UIViewController present: 检测到"不存在"就吞掉并强制激活
-static void forceActivateAll(void){
+// yy 暴露的真实授权方法名（精确）
+static NSSet *gFail(void){static NSSet*s;static dispatch_once_t o;dispatch_once(&o,^{
+  s=[NSSet setWithArray:@[@"responseMessageIndicatesLoginFailure:",@"responseIndicatesSessionInvalid:error:",
+    @"messageMeansInvalidSession:",@"messageIndicatesSessionInvalid:",@"responseMessageIndicatesLoginFailure",
+    @"isExpired",@"isInvalid"]];
+});return s;}
+
+static void sweep(void){
   int n=objc_getClassList(NULL,0);
   Class*cls=(Class*)calloc(n,sizeof(Class)); n=objc_getClassList(cls,n);
+  NSMutableString*dump=[NSMutableString string];
   for(int i=0;i<n;i++){
-    Class K=cls[i]; if(!inApp(K)) continue;
-    // 遍历所有方法，能设到期时间的设成2099
+    Class K=cls[i];
+    const char*cn=class_getName(K); if(!cn) continue;
+    NSString*clsname=[NSString stringWithUTF8String:cn];
+    // 只处理 biz 类：名字含 QX/F5/Core/Gate/License/Login/Verify/Card 或无前缀但方法命中时处理
+    BOOL bizInterest = ([clsname containsString:@"Core"]||[clsname containsString:@"QX"]||
+      [clsname containsString:@"F5"]||[clsname containsString:@"Gate"]||[clsname containsString:@"License"]||
+      [clsname containsString:@"Login"]||[clsname containsString:@"Verify"]||[clsname containsString:@"Card"]||
+      [clsname containsString:@"Auth"]||[clsname containsString:@"Vip"]||[clsname containsString:@"VIP"]);
     unsigned mc=0; Method*ms=class_copyMethodList(K,&mc);
     for(unsigned j=0;j<mc;j++){
-      const char*sn=sel_getName(method_getName(ms[j]));
-      NSString*s=[NSString stringWithUTF8String:sn];
-      if(([s isEqualToString:@"coreLeaseExpiresAt"]||[s isEqualToString:@"featureLeaseExpiresAt"]||
-          [s isEqualToString:@"vipExpireTime"]||[s isEqualToString:@"secureExpiresAt"]) && method_getTypeEncoding(ms[j])[0]=='d')
-        method_setImplementation(ms[j],(IMP)retFuture);
-      if((method_getTypeEncoding(ms[j])[0]=='c'||method_getTypeEncoding(ms[j])[0]=='B')&&
-         ([s hasPrefix:@"hasValid"]||[s hasPrefix:@"isValid"]||[s hasPrefix:@"isVIP"]||
-          [s hasPrefix:@"isAuthorized"]||[s hasPrefix:@"isActivated"]||[s hasPrefix:@"hasSavedCard"]))
-        method_setImplementation(ms[j],(IMP)retYES);
-      if((method_getTypeEncoding(ms[j])[0]=='c'||method_getTypeEncoding(ms[j])[0]=='B')&&
-         ([s hasPrefix:@"isExpired"]||[s hasPrefix:@"isInvalid"]||[s hasPrefix:@"responseMessageIndicatesLoginFailure"]||
-          [s hasPrefix:@"responseIndicatesSessionInvalid"]||[s hasPrefix:@"messageMeansInvalidSession"]))
+      SEL sel=method_getName(ms[j]); const char*sn=sel_getName(sel); NSString*s=[NSString stringWithUTF8String:sn];
+      const char*te=method_getTypeEncoding(ms[j]);
+      // dump 所有与授权相关方法（不限类，保证不漏）
+      if([s containsString:@"Login"]||[s containsString:@"Card"]||[s containsString:@"Lease"]||
+         [s containsString:@"Token"]||[s containsString:@"Vip"]||[s containsString:@"vip"]||
+         [s containsString:@"Expire"]||[s containsString:@"expire"]||[s containsString:@"Valid"]||
+         [s containsString:@"Authoriz"]||[s containsString:@"Session"]||[s containsString:@"Ticket"]||
+         [s containsString:@"Gate"]||[s containsString:@"verify"]||[s containsString:@"Verify"]){
+        [dump appendFormat:@"%@ - %s %s\n",clsname,sn,te];
+      }
+      BOOL isBool=(te[0]=='c'||te[0]=='B');
+      BOOL isDouble=(te[0]=='d');
+      BOOL isVoid=(te[0]=='v');
+      // 失败判定 -> NO
+      if(isBool && ([s isEqualToString:@"responseMessageIndicatesLoginFailure:"]||
+                    [s hasPrefix:@"responseIndicatesSessionInvalid"]||
+                    [s hasPrefix:@"messageMeansInvalidSession"]||
+                    [s hasPrefix:@"messageIndicatesSessionInvalid"]||
+                    [s hasPrefix:@"isExpired"]||[s hasPrefix:@"isInvalid"]||
+                    [s hasPrefix:@"isBanned"]||[s hasPrefix:@"isFrozen"])){
         method_setImplementation(ms[j],(IMP)retNO);
+      }
+      // 有租约/授权 -> YES  (bsupx_c_has_lease 是C函数,这里命中ObjC等价)
+      if(isBool && ([s hasPrefix:@"hasValid"]||[s hasPrefix:@"hasLease"]||[s hasPrefix:@"hasSavedCard"]||
+                    [s hasPrefix:@"isValid"]||[s hasPrefix:@"isVIP"]||[s hasPrefix:@"isVip"]||
+                    [s hasPrefix:@"isAuthorized"]||[s hasPrefix:@"isActivated"]||
+                    [s hasPrefix:@"hasValidCore"]||[s hasPrefix:@"hasValidFeature"])){
+        method_setImplementation(ms[j],(IMP)retYES);
+      }
+      // 到期时间 -> 2099
+      if(isDouble && ([s isEqualToString:@"coreLeaseExpiresAt"]||[s isEqualToString:@"featureLeaseExpiresAt"]||
+                    [s isEqualToString:@"vipExpireTime"]||[s isEqualToString:@"secureExpiresAt"]||
+                    [s containsString:@"ExpiresAt"]||[s containsString:@"ExpireTime"])){
+        method_setImplementation(ms[j],(IMP)retFuture);
+      }
+      // 卡密/票据返回非空
+      if(([s isEqualToString:@"activeCard"]||[s isEqualToString:@"savedCard"]||[s isEqualToString:@"_ticket"]||
+          [s isEqualToString:@"coreToken"]||[s isEqualToString:@"featureToken"]) && te[0]=='@'){
+        method_setImplementation(ms[j],(IMP)retDummy);
+      }
+      // 到期退出 -> noop
+      if(isVoid && [s hasPrefix:@"_showExpiredAlert"]) method_setImplementation(ms[j],(IMP)noop);
     }
     free(ms);
   }
   free(cls);
+  [dump writeToFile:@"/var/mobile/stehook_dump.txt" atomically:YES encoding:NSUTF8StringEncoding error:nil];
+  NSLog(@"[STE] sweep done, classes=%d",n);
 }
 
-// 拦截 alert/弹窗，含"不存在/激活码/未授权/错误"就吞掉 -> 强制激活
-static void hookAlertClass(void){
-  Class presentCls=objc_getClass("UIViewController");
-  SEL sel=@selector(presentViewController:animated:completion:);
-  Method m=class_getInstanceMethod(presentCls,sel);
-  if(!m) return;
-  IMP orig=method_getImplementation(m);
-  static IMP gOrig=nil; gOrig=orig;
-  IMP newImp=imp_implementationWithBlock(^void(id self,UIViewController*vc,BOOL anim,void(^comp)(void)){
-    NSString*text=nil;
-    @try{ text=[vc description]; }@catch(id e){}
-    if([text containsString:@"不存在"]||([text containsString:@"激活码"] && [text containsString:@"错误"])||[text containsString:@"未授权"]||[text containsString:@"卡密"]){
-      NSLog(@"[STE] swallowed alert: %@",text);
-      forceActivateAll();
-      [[NSNotificationCenter defaultCenter] postNotificationName:@"com.via.pro.hj.authorization.changed" object:nil];
-      return; // 不弹
-    }
-    ((void(*)(id,SEL,id,BOOL,id))gOrig)(self,sel,vc,anim,comp);
-  });
-  method_setImplementation(m,newImp);
-}
-
-__attribute__((constructor)) static void ste_init(void){
-  forceActivateAll();
-  hookAlertClass();
-  NSLog(@"[STE] init");
-}
+__attribute__((constructor)) static void ste_init(void){ sweep(); }
