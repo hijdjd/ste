@@ -1,88 +1,90 @@
-// Starbucks-STE auth bypass — 运行时遍历类，替换所有授权判定 selector
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
-#import <objc/message.h>
-#import <UIKit/UIKit.h>
 #import <dlfcn.h>
 
-static NSArray *kBoolYes = nil;      // 恒返回 YES 的 selector
-static NSArray *kNilStr  = nil;      // 恒返回 nil/空字符串的 selector
-static NSArray *kFuture  = nil;      // 恒返回很远的未来时间
-static NSArray *kBlockNoop = nil;    // 空实现（阻止退出/弹窗）
-
 static BOOL retYES(id s, SEL c){ return YES; }
+static BOOL retNO(id s, SEL c){ return NO; }
 static id retNil(id s, SEL c){ return nil; }
-static double retFuture(id s, SEL c){ return 4102444799.0; } // 2099-12-31
-static double retZero(id s, SEL c){ return 0.0; }
-static void void_noop(id s, SEL c){ }
+static double retFuture(id s, SEL c){ return 4102444799.0; }
+static void noop0(id s, SEL c){ }
+static void noop1(id s, SEL c, id a){ }
+static void noop2(id s, SEL c, id a, id b){ }
+static void noop3(id s, SEL c, id a, id b, id c2){ }
+static long ret0(id s, SEL c){ return 0; }
 
-static void sweep(void){
-  int n = objc_getClassList(NULL,0);
-  Class *cls = (Class *)calloc(n, sizeof(Class));
-  n = objc_getClassList(cls,n);
+static void dumpAll(void){
+  int n=objc_getClassList(NULL,0);
+  Class *cls=(Class*)calloc(n,sizeof(Class));
+  n=objc_getClassList(cls,n);
+  NSMutableString *out=[NSMutableString string];
   for(int i=0;i<n;i++){
-    Class K = cls[i];
-    const char *kn = class_getName(K);
-    if(!kn) continue;
-    // 只处理本 app 二进制/image 定义的类，避免误伤系统类
-    Dl_info di; if(dladdr((__bridge void *)K,&di) && di.dli_fname){
-      NSString *path=[NSString stringWithUTF8String:di.dli_fname];
-      if(!([path containsString:@"Podcasts.app"]||[path containsString:@"StarbucksSTE"]||[path containsString:@"/var/"]||[path containsString:@"Bundle/Application"])) continue;
-    } else continue;
-    unsigned mc = 0;
-    Method *ms = class_copyMethodList(K,&mc);
+    Class K=cls[i];
+    Dl_info di; if(!dladdr((__bridge void*)K,&di)||!di.dli_fname) continue;
+    NSString *p=[NSString stringWithUTF8String:di.dli_fname];
+    if(!([p containsString:@"Podcasts.app"]||[p containsString:@"StarbucksSTE"])) continue;
+    [out appendFormat:@"\n== %s ==\n",class_getName(K)];
+    unsigned mc=0; Method *ms=class_copyMethodList(K,&mc);
     for(unsigned j=0;j<mc;j++){
-      SEL sel = method_getName(ms[j]);
-      const char *sn = sel_getName(sel);
-      if(!sn) continue;
-      NSString *s = [NSString stringWithUTF8String:sn];
-      for(NSString *pat in kBoolYes){
-        if([s isEqualToString:pat] || [s hasPrefix:pat]){
-          method_setImplementation(ms[j], (IMP)retYES);
-        }
-      }
-      for(NSString *pat in kNilStr){
-        if([s isEqualToString:pat]){
-          method_setImplementation(ms[j], (IMP)retNil);
-        }
-      }
-      for(NSString *pat in kFuture){
-        if([s isEqualToString:pat] || [s rangeOfString:pat].location!=NSNotFound){
-          const char *rt = method_getTypeEncoding(ms[j]);
-          if(rt && rt[0]=='d') method_setImplementation(ms[j], (IMP)retFuture);
-        }
-      }
-      for(NSString *pat in kBlockNoop){
-        if([s isEqualToString:pat]){
-          const char *rt = method_getTypeEncoding(ms[j]);
-          if(rt && rt[0]=='v') method_setImplementation(ms[j], (IMP)void_noop);
-        }
-      }
-      // 兜底：任何 hasValid* / *isValid* / *isExpired* 之类布尔
-      if(([s hasPrefix:@"hasValid"]||[s hasPrefix:@"isValid"]||[s hasPrefix:@"isVIP"]||
-          [s hasPrefix:@"isAuthorized"]||[s hasPrefix:@"isActivated"]) &&
-         method_getTypeEncoding(ms[j])[0]=='c'){
-        method_setImplementation(ms[j], (IMP)retYES);
-      }
-      if(([s hasPrefix:@"isExpired"]||[s hasPrefix:@"isInvalid"]||[s hasPrefix:@"isBanned"]) &&
-         method_getTypeEncoding(ms[j])[0]=='c'){
-        method_setImplementation(ms[j], (IMP)retZero); // 让 isExpired 返回 NO(0)
-      }
+      [out appendFormat:@"  %s  %s\n",sel_getName(method_getName(ms[j])),method_getTypeEncoding(ms[j])];
     }
     free(ms);
   }
   free(cls);
+  [out writeToFile:@"/var/mobile/stehook_dump.txt" atomically:YES encoding:NSUTF8StringEncoding error:nil];
+  NSLog(@"[STE] dump %lu classes written",(unsigned long)n);
+}
+
+static void sweep(void){
+  int n=objc_getClassList(NULL,0);
+  Class *cls=(Class*)calloc(n,sizeof(Class));
+  n=objc_getClassList(cls,n);
+  for(int i=0;i<n;i++){
+    Class K=cls[i];
+    Dl_info di; if(!dladdr((__bridge void*)K,&di)||!di.dli_fname) continue;
+    NSString *p=[NSString stringWithUTF8String:di.dli_fname];
+    if(!([p containsString:@"Podcasts.app"]||[p containsString:@"StarbucksSTE"])) continue;
+    unsigned mc=0; Method *ms=class_copyMethodList(K,&mc);
+    for(unsigned j=0;j<mc;j++){
+      SEL sel=method_getName(ms[j]); NSString *s=[NSString stringWithUTF8String:sel_getName(sel)];
+      const char *te=method_getTypeEncoding(ms[j]);
+      BOOL isBool = te[0]=='c' || te[0]=='B';
+      // 失败/无效类判定 -> NO
+      if(isBool && ([s hasPrefix:@"responseMessageIndicatesLoginFailure"]||
+                    [s hasPrefix:@"responseIndicatesSessionInvalid"]||
+                    [s hasPrefix:@"messageMeansInvalidSession"]||
+                    [s hasPrefix:@"messageIndicatesSessionInvalid"]||
+                    [s hasPrefix:@"isExpired"]||[s hasPrefix:@"isInvalid"]||
+                    [s hasPrefix:@"isBanned"]||[s hasPrefix:@"isFrozen"]||
+                    [s hasPrefix:@"_isInvalid"]||[s hasPrefix:@"shouldShowExpired"]||
+                    [s hasPrefix:@"isUnauthorized"])){
+        method_setImplementation(ms[j],(IMP)retNO);
+      } else if(isBool && ([s hasPrefix:@"hasValid"]||[s hasPrefix:@"isValid"]||
+                    [s hasPrefix:@"isVIP"]||[s hasPrefix:@"isAuthorized"]||
+                    [s hasPrefix:@"isActivated"]||[s hasPrefix:@"hasSavedCard"]||
+                    [s hasPrefix:@"hasValidCore"]||[s hasPrefix:@"hasValidFeature"]||
+                    [s hasPrefix:@"canUse"]||[s hasPrefix:@"isUsable"])){
+        method_setImplementation(ms[j],(IMP)retYES);
+      }
+      // 到期时间 -> 2099
+      if([s containsString:@"ExpiresAt"]||[s containsString:@"ExpireTime"]||
+         [s isEqualToString:@"coreLeaseExpiresAt"]||[s isEqualToString:@"featureLeaseExpiresAt"]||
+         [s isEqualToString:@"vipExpireTime"]||[s isEqualToString:@"secureExpiresAt"]){
+        if(te[0]=='d') method_setImplementation(ms[j],(IMP)retFuture);
+      }
+      // 到期弹窗/退出 -> 空
+      if([s hasPrefix:@"_showExpiredAlert"]||[s hasPrefix:@"showExpired"]) {
+        if(te[0]=='v'){ if(te[2]=='@') method_setImplementation(ms[j],(IMP)noop1); else method_setImplementation(ms[j],(IMP)noop0);}
+      }
+      // 卡密 token/明细返回非空? 让 savedCard/activeCard 返回占位
+    }
+    free(ms);
+  }
+  free(cls);
+  NSLog(@"[STE] sweep done");
 }
 
 __attribute__((constructor))
-static void init_bypass(void){
-  kBoolYes = @[@"hasValidCoreLease",@"hasSavedCard",@"hasValidFeatureLease",
-               @"hasValidSession",@"isAuthorized",@"isActivated",@"isVIP"];
-  kNilStr  = @[@"savedCard",@"activeCard",@"messageMeansInvalidSession:",
-               @"responseIndicatesSessionInvalid:error:",@"messageIndicatesSessionInvalid:",
-               @"_expireTimeFromText:",@"_expireTextFromRaw:fallbackMessage:"];
-  kFuture  = @[@"coreLeaseExpiresAt",@"featureLeaseExpiresAt",@"vipExpireTime",@"secureExpiresAt"];
-  kBlockNoop = @[@"_showExpiredAlertAndExitWithMessage:",@"stop"];
+static void ste_init(void){
+  dumpAll();
   sweep();
-  NSLog(@"[STE-bypass] sweep applied");
 }
