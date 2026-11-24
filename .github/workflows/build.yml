@@ -8,7 +8,7 @@ jobs:
       - name: Install deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang lld llvm make git curl perl libncurses-dev libssl-dev unzip zlib1g-dev libstdc++-12-dev fakeroot dpkg
+          sudo apt-get install -y clang lld llvm make git curl perl libncurses-dev libssl-dev unzip zlib1g-dev libstdc++-12-dev fakeroot dpkg libxml2 libtinfo6 file
       - name: Setup Theos
         env:
           THEOS: ${{ github.workspace }}/theos
@@ -28,6 +28,7 @@ jobs:
           # 补 libtinfo.so.5（新版 Ubuntu 只有 so.6）
           sudo ln -sf $(find /usr/lib /lib -name 'libtinfo.so.6*' | head -1) /usr/lib/x86_64-linux-gnu/libtinfo.so.5 2>/dev/null || true
           find / -name 'libtinfo.so.6' 2>/dev/null | head -1
+          sudo ln -sf $(find /usr/lib /lib -name 'libxml2.so.2*' | head -1) /usr/lib/x86_64-linux-gnu/libxml2.so.2 2>/dev/null || true
           cd /tmp
           curl -fsSL -o tc.tar.lzma https://github.com/sbingner/llvm-project/releases/download/v10.0.0-2/linux-ios-arm64e-clang-toolchain.tar.lzma
           mkdir -p tc && tar --lzma -xf tc.tar.lzma -C tc
