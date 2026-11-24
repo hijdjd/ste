@@ -24,31 +24,21 @@ jobs:
           THEOS: ${{ github.workspace }}/theos
         run: |
           export THEOS=${{ github.workspace }}/theos
-          TC=$THEOS/toolchain/linux/iphone/bin
-          mkdir -p $TC
-          ln -sf $(command -v clang) $TC/clang
-          ln -sf $(command -v clang++) $TC/clang++
-          # Mach-O 链接器用 ld64.lld
-          ln -sf $(command -v ld64.lld) $TC/ld64.lld 2>/dev/null || ln -sf /usr/bin/ld64.lld $TC/ld64.lld
-          ln -sf $TC/ld64.lld $TC/ld64
-          # Theos 通过 ld64 调 ld64.lld；需要 -fuse-ld 指向
-          echo "clang: $(clang --version | head -1)"
-          echo "ld64.lld: $(command -v ld64.lld || echo MISSING)"
-          # 建 ld wrapper：Theos 默认调 $TC/ld
-          cat > $TC/ld <<WRAP
-          #!/bin/bash
-          exec $(command -v ld64.lld || echo /usr/bin/ld64.lld) "$@"
-          WRAP
-          chmod +x $TC/ld
+          # 下载 Theos 官方 Linux 交叉工具链（含定制 clang，才能正确出 Mach-O）
+          cd /tmp
+          curl -fsSL -o tc.tar.xz https://github.com/theos/toolchain/releases/latest/download/linux-x86_64.tar.xz || \
+          curl -fsSL -o tc.tar.xz https://github.com/sbingner/llvm-project/releases/latest/download/linux-iphoneos-toolchain.tar.xz
+          mkdir -p $THEOS/toolchain/linux/iphone
+          tar -xf tc.tar.xz -C $THEOS/toolchain/linux/iphone --strip-components=1 2>/dev/null || tar -xf tc.tar.xz -C $THEOS/toolchain/linux/
+          ls -R $THEOS/toolchain/linux/iphone/bin | head -20 || true
       - name: Build
         env:
           THEOS: ${{ github.workspace }}/theos
         run: |
           export THEOS=${{ github.workspace }}/theos
           export PATH=$THEOS/bin:$PATH
-          export LD64LLD=$(command -v ld64.lld)
           make clean || true
-          make package FINALPACKAGE=1 DEBUG=0 TARGET_LDFLAGS="-fuse-ld=$LD64LLD" ADDITIONAL_LDFLAGS="-fuse-ld=$LD64LLD"
+          make package FINALPACKAGE=1 DEBUG=0
       - name: Upload deb
         uses: actions/upload-artifact@v4
         with:
