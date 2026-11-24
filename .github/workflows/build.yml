@@ -46,15 +46,20 @@ jobs:
           LD64=$(command -v ld64.lld)
           echo "ld64=$LD64"
           sudo cp /usr/bin/x86_64-linux-gnu-ld.bfd /usr/bin/x86_64-linux-gnu-ld.bfd.real
-          sudo tee /usr/bin/x86_64-linux-gnu-ld.bfd >/dev/null <<W
+          sudo tee /usr/bin/x86_64-linux-gnu-ld.bfd >/dev/null <<'W'
           #!/bin/bash
-          # 吃掉 Theos/clang 传的 -fuse-ld=llvm 之类无效 emulation
-          args=()
-          for a in "$@"; do
-            [ "$a" = "llvm" ] && continue
-            args+=("$a")
+          ARGS=()
+          HAS_ARCH=0
+          HAS_PV=0
+          for A in "$@"; do
+            [ "$A" = "llvm" ] && continue
+            [ "$A" = "-arch" ] && HAS_ARCH=1
+            [ "$A" = "-platform_version" ] && HAS_PV=1
+            ARGS+=("$A")
           done
-          exec $LD64 "${args[@]}"
+          [ "$HAS_ARCH" -eq 0 ] && ARGS=(-arch arm64 "${ARGS[@]}")
+          [ "$HAS_PV" -eq 0 ] && ARGS=(-platform_version ios 15.0 15.0 "${ARGS[@]}")
+          exec /usr/bin/ld64.lld "${ARGS[@]}"
           W
           sudo chmod +x /usr/bin/x86_64-linux-gnu-ld.bfd
           make clean || true
