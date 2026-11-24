@@ -8,38 +8,31 @@ jobs:
       - name: Install deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang lld llvm make git curl perl libncurses-dev libssl-dev unzip zlib1g-dev libstdc++-12-dev fakeroot dpkg libtinfo6 file libxml2-dev
-      - name: Setup Theos
+          sudo apt-get install -y clang lld llvm make git curl perl fakeroot dpkg file unzip xz-utils
+          clang --version
+      - name: Setup Theos + SDK
         env:
           THEOS: ${{ github.workspace }}/theos
         run: |
           export THEOS=${{ github.workspace }}/theos
           git clone --recursive https://github.com/theos/theos.git $THEOS
-          curl -L https://github.com/theos/sdks/archive/master.zip -o /tmp/sdks.zip
+          curl -fsSL https://github.com/theos/sdks/archive/master.zip -o /tmp/sdks.zip
           unzip -q /tmp/sdks.zip -d /tmp/sdks
           mkdir -p $THEOS/sdks
-          cp -r /tmp/sdks/sdks-master/iPhoneOS16.5.sdk $THEOS/sdks/ 2>/dev/null || cp -r /tmp/sdks/sdks-master/* $THEOS/sdks/
-      - name: Setup Linux toolchain
-        env:
-          THEOS: ${{ github.workspace }}/theos
-        run: |
-          export THEOS=${{ github.workspace }}/theos
-          sudo apt-get install -y xz-utils
-          # 补 libtinfo.so.5（新版 Ubuntu 只有 so.6）
-          sudo ln -sf $(find /usr/lib /lib -name 'libtinfo.so.6*' | head -1) /usr/lib/x86_64-linux-gnu/libtinfo.so.5 2>/dev/null || true
-          find / -name 'libtinfo.so.6' 2>/dev/null | head -1
-          sudo ln -sf $(find /usr/lib /lib -name 'libxml2.so.2*' | head -1) /usr/lib/x86_64-linux-gnu/libxml2.so.2 2>/dev/null || true
-          cd /tmp
-          curl -fsSL -o tc.tar.lzma https://github.com/sbingner/llvm-project/releases/download/v10.0.0-2/linux-ios-arm64e-clang-toolchain.tar.lzma
-          mkdir -p tc && tar --lzma -xf tc.tar.lzma -C tc
-          ls tc
-          SRC=$(find tc -maxdepth 1 -type d -name "*clang*" | head -1)
-          echo "SRC=$SRC"
-          rm -rf $THEOS/toolchain
-          mkdir -p $THEOS/toolchain/linux
-          mv "$SRC" $THEOS/toolchain/linux/iphone
-          ls $THEOS/toolchain/linux/iphone/bin | head
-          $THEOS/toolchain/linux/iphone/bin/clang --version | head -2 || true
+          cp -r /tmp/sdks/sdks-master/*.sdk $THEOS/sdks/ 2>/dev/null || cp -r /tmp/sdks/sdks-master/* $THEOS/sdks/
+          ls $THEOS/sdks
+          # 用系统 clang 21 充当 toolchain，ld64.lld 做 Mach-O 链接
+          TC=$THEOS/toolchain/linux/iphone/bin
+          mkdir -p $TC
+          ln -sf $(command -v clang) $TC/clang
+          ln -sf $(command -v clang++) $TC/clang++
+          cat > $TC/ld64 <<W
+          #!/bin/bash
+          exec $(command -v ld64.lld) "$@"
+          W
+          chmod +x $TC/ld64
+          ln -sf $TC/ld64 $TC/ld
+          ls -l $TC
       - name: Build
         env:
           THEOS: ${{ github.workspace }}/theos
@@ -48,13 +41,10 @@ jobs:
           export PATH=$THEOS/bin:$PATH
           make clean || true
           make package FINALPACKAGE=1 DEBUG=0
-      - name: Upload deb
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: tweak-deb
-          path: packages/*.deb
-      - name: Upload dylib
-        uses: actions/upload-artifact@v4
-        with:
-          name: tweak-dylib
-          path: .theos/obj/**/stehook.dylib
+          name: output
+          path: |
+            packages/*.deb
+            .theos/obj/**/*.dylib
