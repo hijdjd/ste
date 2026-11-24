@@ -8,7 +8,7 @@ jobs:
       - name: Install deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang lld llvm make git curl perl libncurses-dev libssl-dev unzip zlib1g-dev libstdc++-12-dev fakeroot dpkg libxml2 libtinfo6 file
+          sudo apt-get install -y clang lld llvm make git curl perl libncurses-dev libssl-dev unzip zlib1g-dev libstdc++-12-dev fakeroot dpkg libtinfo6 file libxml2-dev
       - name: Setup Theos
         env:
           THEOS: ${{ github.workspace }}/theos
