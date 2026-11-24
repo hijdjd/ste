@@ -24,16 +24,22 @@ jobs:
           THEOS: ${{ github.workspace }}/theos
         run: |
           export THEOS=${{ github.workspace }}/theos
-          mkdir -p $THEOS/toolchain/linux/iphone/bin
-          for t in clang clang++ ld lld ld64.lld; do
-            real=$(command -v $t 2>/dev/null || command -v ${t/lld/ld.lld} 2>/dev/null || true)
-          done
-          ln -sf $(command -v clang) $THEOS/toolchain/linux/iphone/bin/clang
-          ln -sf $(command -v clang++) $THEOS/toolchain/linux/iphone/bin/clang++
-          ln -sf $(command -v ld.lld) $THEOS/toolchain/linux/iphone/bin/ld 2>/dev/null || true
-          ln -sf $(command -v lld) $THEOS/toolchain/linux/iphone/bin/ld64 2>/dev/null || true
-          # Theos 需要 ld64/ldid，用系统 lld；补工具软链
-          ln -sf $(command -v ld.lld) $THEOS/toolchain/linux/iphone/bin/ld.lld 2>/dev/null || true
+          TC=$THEOS/toolchain/linux/iphone/bin
+          mkdir -p $TC
+          ln -sf $(command -v clang) $TC/clang
+          ln -sf $(command -v clang++) $TC/clang++
+          # Mach-O 链接器用 ld64.lld
+          ln -sf $(command -v ld64.lld) $TC/ld64.lld 2>/dev/null || ln -sf /usr/bin/ld64.lld $TC/ld64.lld
+          ln -sf $TC/ld64.lld $TC/ld64
+          # Theos 通过 ld64 调 ld64.lld；需要 -fuse-ld 指向
+          echo "clang: $(clang --version | head -1)"
+          echo "ld64.lld: $(command -v ld64.lld || echo MISSING)"
+          # 建 ld wrapper：Theos 默认调 $TC/ld
+          cat > $TC/ld <<WRAP
+          #!/bin/bash
+          exec $(command -v ld64.lld || echo /usr/bin/ld64.lld) "$@"
+          WRAP
+          chmod +x $TC/ld
       - name: Build
         env:
           THEOS: ${{ github.workspace }}/theos
