@@ -32,6 +32,9 @@ jobs:
           W
           chmod +x $TC/ld64
           ln -sf $TC/ld64 $TC/ld
+          # 让 -fuse-ld=lld 能找到：建 ld.lld 到 PATH
+          sudo ln -sf $(command -v ld64.lld) /usr/local/bin/ld.lld
+          ls -l /usr/local/bin/ld.lld
           ls -l $TC
       - name: Build
         env:
@@ -40,6 +43,7 @@ jobs:
           export THEOS=${{ github.workspace }}/theos
           export PATH=$THEOS/bin:$PATH
           make clean || true
+          make -n package FINALPACKAGE=1 DEBUG=0 2>&1 | grep -i "ld|clang" | head -20 || true
           make package FINALPACKAGE=1 DEBUG=0
       - uses: actions/upload-artifact@v4
         if: always()
