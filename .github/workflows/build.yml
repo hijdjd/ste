@@ -50,11 +50,11 @@ jobs:
           #!/bin/bash
           # 吃掉 Theos/clang 传的 -fuse-ld=llvm 之类无效 emulation
           args=()
-          for a in "\$@"; do
+          for a in "$@"; do
             [ "\$a" = "llvm" ] && continue
-            args+=("\$a")
+            args+=("$a")
           done
-          exec $LD64 "\${args[@]}"
+          exec $LD64 "${args[@]}"
           W
           sudo chmod +x /usr/bin/x86_64-linux-gnu-ld.bfd
           make clean || true
