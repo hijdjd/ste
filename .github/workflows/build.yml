@@ -51,7 +51,7 @@ jobs:
           # 吃掉 Theos/clang 传的 -fuse-ld=llvm 之类无效 emulation
           args=()
           for a in "$@"; do
-            [ "\$a" = "llvm" ] && continue
+            [ "$a" = "llvm" ] && continue
             args+=("$a")
           done
           exec $LD64 "${args[@]}"
