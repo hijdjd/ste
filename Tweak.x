@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 #import <dlfcn.h>
+#import <UIKit/UIKit.h>
 
 static BOOL inApp(Class K){
   Dl_info di; if(!dladdr((__bridge void*)K,&di)||!di.dli_fname) return NO;
@@ -19,8 +20,6 @@ static void forceActivateAll(void){
   Class*cls=(Class*)calloc(n,sizeof(Class)); n=objc_getClassList(cls,n);
   for(int i=0;i<n;i++){
     Class K=cls[i]; if(!inApp(K)) continue;
-    id inst=nil;
-    @try{ if([K respondsToSelector:@selector(sharedInstance)]) inst=[K performSelector:@selector(sharedInstance)];}@catch(id e){}
     // 遍历所有方法，能设到期时间的设成2099
     unsigned mc=0; Method*ms=class_copyMethodList(K,&mc);
     for(unsigned j=0;j<mc;j++){
@@ -53,8 +52,8 @@ static void hookAlertClass(void){
   static IMP gOrig=nil; gOrig=orig;
   IMP newImp=imp_implementationWithBlock(^void(id self,UIViewController*vc,BOOL anim,void(^comp)(void)){
     NSString*text=nil;
-    @try{ text=[NSString stringWithFormat:@"%@",vc]; }@catch(id e){}
-    if([text containsString:@"不存在"]||[text containsString:@"激活码"]&&[text containsString:@"错误"]||[text containsString:@"未授权"]||[text containsString:@"卡密"]){
+    @try{ text=[vc description]; }@catch(id e){}
+    if([text containsString:@"不存在"]||([text containsString:@"激活码"] && [text containsString:@"错误"])||[text containsString:@"未授权"]||[text containsString:@"卡密"]){
       NSLog(@"[STE] swallowed alert: %@",text);
       forceActivateAll();
       [[NSNotificationCenter defaultCenter] postNotificationName:@"com.via.pro.hj.authorization.changed" object:nil];
