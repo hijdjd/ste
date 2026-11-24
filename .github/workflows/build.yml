@@ -24,13 +24,14 @@ jobs:
           THEOS: ${{ github.workspace }}/theos
         run: |
           export THEOS=${{ github.workspace }}/theos
-          # 下载 Theos 官方 Linux 交叉工具链（含定制 clang，才能正确出 Mach-O）
+          sudo apt-get install -y xz-utils
           cd /tmp
-          curl -fsSL -o tc.tar.xz https://github.com/theos/toolchain/releases/latest/download/linux-x86_64.tar.xz || \
-          curl -fsSL -o tc.tar.xz https://github.com/sbingner/llvm-project/releases/latest/download/linux-iphoneos-toolchain.tar.xz
-          mkdir -p $THEOS/toolchain/linux/iphone
-          tar -xf tc.tar.xz -C $THEOS/toolchain/linux/iphone --strip-components=1 2>/dev/null || tar -xf tc.tar.xz -C $THEOS/toolchain/linux/
-          ls -R $THEOS/toolchain/linux/iphone/bin | head -20 || true
+          curl -fsSL -o tc.tar.lzma https://github.com/sbingner/llvm-project/releases/download/v10.0.0-2/linux-ios-arm64e-clang-toolchain.tar.lzma
+          mkdir -p tc && tar --lzma -xf tc.tar.lzma -C tc
+          rm -rf $THEOS/toolchain
+          mkdir -p $THEOS/toolchain/linux
+          mv tc/linux-ios-arm64e-clang-toolchain $THEOS/toolchain/linux/iphone
+          $THEOS/toolchain/linux/iphone/bin/clang --version | head -2
       - name: Build
         env:
           THEOS: ${{ github.workspace }}/theos
