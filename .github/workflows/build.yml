@@ -42,13 +42,23 @@ jobs:
         run: |
           export THEOS=${{ github.workspace }}/theos
           export PATH=$THEOS/bin:$PATH
-          export LD64LLD=$(command -v ld64.lld)
-          echo "LD64LLD=$LD64LLD"
+          # clang 21 在 Linux 上对 apple target 仍找 ld.bfd；直接劫持 bfd 为 ld64.lld
+          LD64=$(command -v ld64.lld)
+          echo "ld64=$LD64"
+          sudo cp /usr/bin/x86_64-linux-gnu-ld.bfd /usr/bin/x86_64-linux-gnu-ld.bfd.real
+          sudo tee /usr/bin/x86_64-linux-gnu-ld.bfd >/dev/null <<W
+          #!/bin/bash
+          # 吃掉 Theos/clang 传的 -fuse-ld=llvm 之类无效 emulation
+          args=()
+          for a in "\$@"; do
+            [ "\$a" = "llvm" ] && continue
+            args+=("\$a")
+          done
+          exec $LD64 "\${args[@]}"
+          W
+          sudo chmod +x /usr/bin/x86_64-linux-gnu-ld.bfd
           make clean || true
-          echo "=== link cmd ==="
-          make -n package FINALPACKAGE=1 DEBUG=0 TARGET_LDFLAGS="-fuse-ld=$LD64LLD" 2>&1 | grep -iE "ld64\.lld|fuse-ld|Linking| -o " | head -10 || true
-          echo "=== build ==="
-          make package FINALPACKAGE=1 DEBUG=0 TARGET_LDFLAGS="-fuse-ld=$LD64LLD"
+          make package FINALPACKAGE=1 DEBUG=0
       - uses: actions/upload-artifact@v4
         if: always()
         with:
